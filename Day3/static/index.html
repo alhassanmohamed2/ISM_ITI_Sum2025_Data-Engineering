@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .chat-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .message-username {
+            font-weight: bold;
+            color: #333;
+        }
+        .message-time {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #ddd;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Chat</h1>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('login')">Login</div>
+        <div class="tab" onclick="switchTab('register')">Register</div>
+        <div class="tab" onclick="switchTab('chat')">Chat</div>
+    </div>
+    
+    <div id="login" class="tab-content active">
+        <h2>Login</h2>
+        <div class="form-group">
+            <label for="login-username">Username:</label>
+            <input type="text" id="login-username" required>
+        </div>
+        <div class="form-group">
+            <label for="login-password">Password:</label>
+            <input type="password" id="login-password" required>
+        </div>
+        <button onclick="login()">Login</button>
+        <p id="login-message"></p>
+    </div>
+    
+    <div id="register" class="tab-content">
+        <h2>Register</h2>
+        <div class="form-group">
+            <label for="register-username">Username:</label>
+            <input type="text" id="register-username" required>
+        </div>
+        <div class="form-group">
+            <label for="register-password">Password:</label>
+            <input type="password" id="register-password" required>
+        </div>
+        <button onclick="register()">Register</button>
+        <p id="register-message"></p>
+    </div>
+    
+    <div id="chat" class="tab-content">
+        <h2>Chat Room</h2>
+        <div class="chat-container" id="messages-container">
+            <!-- Messages will appear here -->
+        </div>
+        
+        <div class="form-group">
+            <label for="message-content">Your Message:</label>
+            <textarea id="message-content" rows="3" required></textarea>
+        </div>
+        <button onclick="postMessage()">Send Message</button>
+        <p id="chat-message"></p>
+    </div>
+    
+    <script>
+        let currentUser = null;
+        const apiBaseUrl = 'http://localhost:8002';
+        
+        // Tab switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+            
+            if (tabId === 'chat') {
+                loadMessages();
+            }
+        }
+        
+        // Basic auth header helper
+        function getAuthHeader() {
+            if (!currentUser) return {};
+            const auth = btoa(`${currentUser.username}:${currentUser.password}`);
+            return { 'Authorization': `Basic ${auth}` };
+        }
+        
+        // Login function
+        async function login() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/me`, {
+                    headers: {
+                        'Authorization': `Basic ${btoa(`${username}:${password}`)}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = { username, password, id: data.user_id };
+                    document.getElementById('login-message').textContent = 'Login successful!';
+                    document.getElementById('login-message').style.color = 'green';
+                    switchTab('chat');
+                } else {
+                    document.getElementById('login-message').textContent = 'Login failed. Check your credentials.';
+                    document.getElementById('login-message').style.color = 'red';
+                }
+            } catch (error) {
+                document.getElementById('login-message').textContent = 'Error during login.';
+                document.getElementById('login-message').style.color = 'red';
+                console.error(error);
+            }
+        }
+        
+        // Register function
+        async function register() {
+            const username = document.getElementById('register-username').value;
+            const password = document.getElementById('register-password').value;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('register-message').textContent = 'Registration successful! Please login.';
+                    document.getElementById('register-message').style.color = 'green';
+                    switchTab('login');
+                } else {
+                    const error = await response.json();
+                    document.getElementById('register-message').textContent = error.detail || 'Registration failed.';
+                    document.getElementById('register-message').style.color = 'red';
+                }
+            } catch (error) {
+                document.getElementById('register-message').textContent = 'Error during registration.';
+                document.getElementById('register-message').style.color = 'red';
+                console.error(error);
+            }
+        }
+        
+        // Load messages
+        
+        async function loadMessages() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/messages`);
+                const data = await response.json();
+                
+                const container = document.getElementById('messages-container');
+                container.innerHTML = '';
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message';
+                        messageDiv.innerHTML = `
+                            <div class="message-username">${msg.username}</div>
+                            <div class="message-content">${msg.content}</div>
+                            <div class="message-time">${new Date(msg.created_at).toLocaleString()}</div>
+                        `;
+                        container.appendChild(messageDiv);
+                    });
+                } else {
+                    container.innerHTML = '<p>No messages yet. Be the first to post!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            }
+        }
+        
+        // Post message
+        async function postMessage() {
+            if (!currentUser) {
+                document.getElementById('chat-message').textContent = 'Please login first.';
+                document.getElementById('chat-message').style.color = 'red';
+                switchTab('login');
+                return;
+            }
+            
+            const content = document.getElementById('message-content').value;
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/messages`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Basic ${btoa(`${currentUser.username}:${currentUser.password}`)}`
+                    },
+                    body: JSON.stringify({ content })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('message-content').value = '';
+                    document.getElementById('chat-message').textContent = 'Message sent!';
+                    document.getElementById('chat-message').style.color = 'green';
+                    loadMessages();
+                } else {
+                    const error = await response.json();
+                    document.getElementById('chat-message').textContent = error.detail || 'Failed to send message.';
+                    document.getElementById('chat-message').style.color = 'red';
+                }
+            } catch (error) {
+                document.getElementById('chat-message').textContent = 'Error sending message.';
+                document.getElementById('chat-message').style.color = 'red';
+                console.error(error);
+            }
+        }
+        
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if already logged in (simple version, would normally use cookies/session)
+            if (currentUser) {
+                switchTab('chat');
+            }
+        });
+    </script>
+</body>
+</html>
